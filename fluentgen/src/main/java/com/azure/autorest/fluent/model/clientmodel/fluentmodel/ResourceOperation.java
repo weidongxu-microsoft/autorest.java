@@ -135,7 +135,7 @@ public abstract class ResourceOperation {
         Map<String, ProxyMethodParameter> proxyMethodParameterByClientParameterName = clientMethod.getProxyMethod().getParameters().stream()
                 .filter(p -> parameterLocations.contains(p.getRequestParameterLocation()))
                 .collect(Collectors.toMap(p -> CodeNamer.getEscapedReservedClientMethodParameterName(p.getName()), Function.identity()));
-        return clientMethod.getParameters().stream()
+        return clientMethod.getMethodParameters().stream()
                 .filter(p -> proxyMethodParameterByClientParameterName.containsKey(p.getName()))
                 .map(p -> new MethodParameter(proxyMethodParameterByClientParameterName.get(p.getName()), p))
                 .collect(Collectors.toList());
@@ -160,8 +160,8 @@ public abstract class ResourceOperation {
         return this.getResourceLocalVariables().getLocalVariablesMap().values();
     }
 
-    // method reference
-    private List<FluentCollectionMethod> getMethodReferencesOfFullParameters() {
+    protected List<FluentCollectionMethod> getMethodReferencesOfFullParameters() {
+        // method references of full parameters (include optional parameters)
         return this.getMethodReferences().stream()
                 .filter(m -> !m.getInnerClientMethod().getOnlyRequiredParameters())
                 .collect(Collectors.toList());
@@ -263,5 +263,10 @@ public abstract class ResourceOperation {
 
     protected boolean isLocationProperty(ClientModelProperty property) {
         return FluentUtils.modelHasLocationProperty(resourceModel) && property.getName().equals(ResourceTypeName.FIELD_LOCATION);
+    }
+
+    protected boolean hasConflictingMethod(String name) {
+        return resourceCollection.getMethods().stream()
+                .anyMatch(m -> name.equals(m.getInnerClientMethod().getName()));
     }
 }

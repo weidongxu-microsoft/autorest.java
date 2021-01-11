@@ -19,6 +19,8 @@ import com.azure.autorest.model.javamodel.JavaFile;
 import com.azure.autorest.model.javamodel.JavaIfBlock;
 import com.azure.autorest.model.javamodel.JavaJavadocComment;
 import com.azure.autorest.model.javamodel.JavaModifier;
+import com.azure.core.util.CoreUtils;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -51,9 +53,11 @@ public class ModelTemplate implements IJavaTemplate<ClientModel, JavaFile> {
         }
 
         imports.add("com.fasterxml.jackson.annotation.JsonCreator");
+        String lastParentName = model.getName();
         ClientModel parentModel = ClientModels.Instance.getModel(model.getParentModelName());
-        while (parentModel != null) {
+        while (parentModel != null && !lastParentName.equals(parentModel.getName())) {
             imports.addAll(parentModel.getImports());
+            lastParentName = parentModel.getName();
             parentModel = ClientModels.Instance.getModel(parentModel.getParentModelName());
         }
 
@@ -297,9 +301,10 @@ public class ModelTemplate implements IJavaTemplate<ClientModel, JavaFile> {
     private void addModelConstructor(ClientModel model, JavaSettings settings, JavaClass classBlock,
         List<ClientModelProperty> constantProperties, List<ClientModelProperty> requiredProperties) {
 
+        String lastParentName = model.getName();
         ClientModel parentModel = ClientModels.Instance.getModel(model.getParentModelName());
         List<ClientModelProperty> requiredParentProperties = new ArrayList<>();
-        while (parentModel != null) {
+        while (parentModel != null && !lastParentName.equals(parentModel.getName())) {
             List<ClientModelProperty> ctorArgs =
                 parentModel.getProperties().stream().filter(ClientModelProperty::isRequired)
                     .collect(Collectors.toList());
@@ -307,6 +312,8 @@ public class ModelTemplate implements IJavaTemplate<ClientModel, JavaFile> {
             // super class has multiple ctor args
             Collections.reverse(ctorArgs);
             requiredParentProperties.addAll(ctorArgs);
+
+            lastParentName = parentModel.getName();
             parentModel = ClientModels.Instance.getModel(parentModel.getParentModelName());
         }
 
@@ -458,15 +465,20 @@ public class ModelTemplate implements IJavaTemplate<ClientModel, JavaFile> {
     protected List<ClientModelPropertyReference> getClientModelPropertyReferences(ClientModel model) {
         List<ClientModelPropertyReference> propertyReferences = new ArrayList<>();
         if (JavaSettings.getInstance().isOverrideSetterFromSuperclass()) {
+            String lastParentName = model.getName();
             String parentModelName = model.getParentModelName();
-            while (parentModelName != null) {
+            while (parentModelName != null && !lastParentName.equals(parentModelName)) {
                 ClientModel parentModel = ClientModels.Instance.getModel(parentModelName);
                 if (parentModel != null) {
                     if (parentModel.getProperties() != null) {
-                        propertyReferences.addAll(parentModel.getProperties().stream().map(ClientModelPropertyReference::new).collect(Collectors.toList()));
+                        propertyReferences.addAll(parentModel.getProperties().stream()
+                                .filter(p -> !("additionalProperties".equals(p.getName()) && CoreUtils.isNullOrEmpty(p.getSerializedName())))   // exclude `additionalProperties`
+                                .map(ClientModelPropertyReference::new)
+                                .collect(Collectors.toList()));
                     }
                 }
 
+                lastParentName = parentModelName;
                 parentModelName = parentModel == null ? null : parentModel.getParentModelName();
             }
         }

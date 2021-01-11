@@ -14,6 +14,7 @@ import com.azure.autorest.model.clientmodel.ClientModelPropertyReference;
 import com.azure.autorest.model.clientmodel.ClientModels;
 import com.azure.autorest.template.ModelTemplate;
 import com.azure.autorest.util.ModelNamer;
+import com.azure.core.util.CoreUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -58,18 +59,23 @@ public class FluentModelTemplate extends ModelTemplate {
     protected List<ClientModelPropertyReference> getClientModelPropertyReferences(ClientModel model) {
         List<ClientModelPropertyReference> propertyReferences = new ArrayList<>();
         if (JavaSettings.getInstance().isOverrideSetterFromSuperclass()) {
+            String lastParentName = model.getName();
             String parentModelName = model.getParentModelName();
-            while (parentModelName != null) {
+            while (parentModelName != null && !lastParentName.equals(parentModelName)) {
                 ClientModel parentModel = ClientModels.Instance.getModel(parentModelName);
                 if (parentModel == null) {
                     parentModel = getPredefinedModel(parentModelName).orElse(null);
                 }
                 if (parentModel != null) {
                     if (parentModel.getProperties() != null) {
-                        propertyReferences.addAll(parentModel.getProperties().stream().map(ClientModelPropertyReference::new).collect(Collectors.toList()));
+                        propertyReferences.addAll(parentModel.getProperties().stream()
+                                .filter(p -> !("additionalProperties".equals(p.getName()) && CoreUtils.isNullOrEmpty(p.getSerializedName())))   // exclude `additionalProperties`
+                                .map(ClientModelPropertyReference::new)
+                                .collect(Collectors.toList()));
                     }
                 }
 
+                lastParentName = parentModelName;
                 parentModelName = parentModel == null ? null : parentModel.getParentModelName();
             }
         }

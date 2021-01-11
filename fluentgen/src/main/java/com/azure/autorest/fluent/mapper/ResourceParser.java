@@ -15,6 +15,7 @@ import com.azure.autorest.fluent.model.clientmodel.FluentClient;
 import com.azure.autorest.fluent.model.clientmodel.FluentCollectionMethod;
 import com.azure.autorest.fluent.model.clientmodel.FluentResourceCollection;
 import com.azure.autorest.fluent.model.clientmodel.FluentResourceModel;
+import com.azure.autorest.fluent.model.clientmodel.fluentmodel.action.ResourceActions;
 import com.azure.autorest.fluent.model.clientmodel.fluentmodel.create.ResourceCreate;
 import com.azure.autorest.fluent.model.clientmodel.fluentmodel.delete.ResourceDelete;
 import com.azure.autorest.fluent.model.clientmodel.fluentmodel.get.ResourceRefresh;
@@ -25,7 +26,6 @@ import com.azure.autorest.model.clientmodel.ClassType;
 import com.azure.autorest.model.clientmodel.ClientMethodType;
 import com.azure.autorest.model.clientmodel.ClientModel;
 import com.azure.autorest.model.clientmodel.IType;
-import com.azure.autorest.model.clientmodel.PrimitiveType;
 import com.azure.autorest.template.prototype.MethodTemplate;
 import com.azure.core.http.HttpMethod;
 import com.azure.core.management.Region;
@@ -64,6 +64,9 @@ public class ResourceParser {
 
         // delete in collection
         resourceCreates.forEach(rc -> ResourceParser.resolveResourceDelete(collection, rc));
+
+        // resource actions
+        resourceCreates.forEach(rc -> ResourceParser.resourceResourceActions(collection, rc));
     }
 
     public static void processAdditionalMethods(FluentClient fluentClient) {
@@ -116,10 +119,12 @@ public class ResourceParser {
                         .collect(Collectors.toList()));
     }
 
-    private static List<ResourceCreate> resolveResourceCreate(
+    static List<ResourceCreate> resolveResourceCreate(
             FluentResourceCollection collection,
             List<FluentResourceModel> availableFluentModels,
             List<ClientModel> availableModels) {
+
+        // reference https://github.com/Azure/azure-resource-manager-rpc/blob/master/v1.0/resource-api-reference.md
 
         Map<String, FluentResourceModel> fluentModelMapByName = availableFluentModels.stream()
                 .collect(Collectors.toMap(m -> m.getInterfaceType().toString(), Function.identity()));
@@ -130,7 +135,9 @@ public class ResourceParser {
         List<ModelCategory> categories = Arrays.asList(
                 ModelCategory.RESOURCE_GROUP_AS_PARENT,
                 ModelCategory.SUBSCRIPTION_AS_PARENT,
-                ModelCategory.NESTED_CHILD);
+                ModelCategory.NESTED_CHILD,
+                ModelCategory.SCOPE_AS_PARENT,
+                ModelCategory.SCOPE_NESTED_CHILD);
 
         for (ModelCategory category : categories) {
             Map<FluentResourceModel, ResourceCreate> modelOfResourceGroupAsParent =
@@ -148,7 +155,7 @@ public class ResourceParser {
 
                 supportsCreateList.add(resourceCreate);
 
-                logger.info("Fluent model {} as category {}", fluentModel.getName(), category);
+                logger.info("Fluent model '{}' as category {}", fluentModel.getName(), category);
             }
         }
 
@@ -159,7 +166,7 @@ public class ResourceParser {
         return supportsCreateList;
     }
 
-    private static Optional<ResourceUpdate> resolveResourceUpdate(
+    static Optional<ResourceUpdate> resolveResourceUpdate(
             FluentResourceCollection collection,
             ResourceCreate resourceCreate,
             List<ClientModel> availableModels) {
@@ -176,7 +183,7 @@ public class ResourceParser {
         if (method != null) {
             ClientModel bodyClientModel = getBodyClientModel(method, availableModels);
             if (bodyClientModel == null) {
-                logger.warn("client model not found for collection {}, method {}", collection.getInterfaceType().getName(), method.getInnerClientMethod().getName());
+                logger.warn("client model not found for collection '{}', method '{}'", collection.getInterfaceType().getName(), method.getInnerClientMethod().getName());
             } else {
                 resourceUpdate = new ResourceUpdate(resourceCreate.getResourceModel(), collection,
                         resourceCreate.getUrlPathSegments(), method.getInnerClientMethod().getName(),
@@ -192,7 +199,7 @@ public class ResourceParser {
         return Optional.ofNullable(resourceUpdate);
     }
 
-    private static Optional<ResourceRefresh> resolveResourceRefresh(
+    static Optional<ResourceRefresh> resolveResourceRefresh(
             FluentResourceCollection collection,
             ResourceCreate resourceCreate) {
 
@@ -212,7 +219,7 @@ public class ResourceParser {
         return Optional.ofNullable(resourceRefresh);
     }
 
-    private static Optional<ResourceDelete> resolveResourceDelete(
+    static Optional<ResourceDelete> resolveResourceDelete(
             FluentResourceCollection collection,
             ResourceCreate resourceCreate) {
 
@@ -231,7 +238,47 @@ public class ResourceParser {
         return Optional.ofNullable(resourceDelete);
     }
 
-    private static Map<FluentResourceModel, ResourceCreate> findResourceCreateForCategory(
+    static Optional<ResourceActions> resourceResourceActions(
+            FluentResourceCollection collection,
+            ResourceCreate resourceCreate) {
+
+        // reference https://github.com/Azure/azure-resource-manager-rpc/blob/master/v1.0/proxy-api-reference.md#resource-action-requests
+
+        ResourceActions resourceActions = null;
+        List<FluentCollectionMethod> actionMethods = new ArrayList<>();
+
+        for (FluentCollectionMethod method : collection.getMethods()) {
+            HttpMethod httpMethod = method.getInnerProxyMethod().getHttpMethod();
+            // POST
+            if (httpMethod == HttpMethod.POST) {
+                String url = method.getInnerProxyMethod().getUrlPath();
+                // except last literal segment, same url as create
+                if (url.startsWith(resourceCreate.getUrlPathSegments().getPath())
+                        && url.substring(0, url.lastIndexOf("/")).equals(resourceCreate.getUrlPathSegments().getPath())
+                        && !new UrlPathSegments(url).getReverseSegments().iterator().next().isParameterSegment()) {
+                    // parameter from request body
+                    if (method.getInnerProxyMethod().getParameters().stream()
+                            .allMatch(p -> p.getFromClient()
+                                    || !p.getIsRequired()
+                                    || (p.getRequestParameterLocation() == RequestParameterLocation.Header && p.getIsConstant())
+                                    || p.getRequestParameterLocation() == RequestParameterLocation.Path
+                                    || p.getRequestParameterLocation() == RequestParameterLocation.Body)) {
+                        actionMethods.add(method);
+                    }
+                }
+            }
+        }
+
+        if (!actionMethods.isEmpty()) {
+            resourceActions = new ResourceActions(resourceCreate.getResourceModel(), collection, actionMethods);
+
+            resourceCreate.getResourceModel().setResourceActions(resourceActions);
+        }
+
+        return Optional.ofNullable(resourceActions);
+    }
+
+    static Map<FluentResourceModel, ResourceCreate> findResourceCreateForCategory(
             FluentResourceCollection collection,
             Map<String, FluentResourceModel> fluentModelMapByName,
             List<ClientModel> availableModels,
@@ -263,43 +310,64 @@ public class ResourceParser {
                                 String url = m.getInnerProxyMethod().getUrlPath();
                                 UrlPathSegments urlPathSegments = new UrlPathSegments(url);
 
-                                //logger.info("Candidate fluent model {}, hasSubscription {}, hasResourceGroup {}, isNested {}, method name {}", fluentModel.getName(), urlPathSegments.hasSubscription(), urlPathSegments.hasResourceGroup(), urlPathSegments.isNested(), m.getInnerClientMethod().getName());
-
-                                // requires named parameters in URL (this might be relaxed after better solution to parse URL to parameters)
-                                boolean urlParameterSegmentsNamed = urlPathSegments.getReverseParameterSegments().stream()
-                                        .noneMatch(s -> CoreUtils.isNullOrEmpty(s.getSegmentName()));
+                                //logger.info("Candidate fluent model '{}', hasSubscription '{}', hasResourceGroup '{}', isNested '{}', method name '{}'", fluentModel.getName(), urlPathSegments.hasSubscription(), urlPathSegments.hasResourceGroup(), urlPathSegments.isNested(), m.getInnerClientMethod().getName());
 
                                 // has "subscriptions" segment, and last segment should be resource name
-                                if (!urlPathSegments.getReverseSegments().isEmpty()
-                                        && urlParameterSegmentsNamed
-                                        && urlPathSegments.getReverseSegments().iterator().next().isParameterSegment()
-                                        && urlPathSegments.hasSubscription()) {
+                                if (!urlPathSegments.getReverseSegments().isEmpty() && urlPathSegments.getReverseSegments().iterator().next().isParameterSegment()) {
+
+                                    // requires named parameters in URL
+                                    boolean urlParameterSegmentsNamed = urlPathSegments.getReverseParameterSegments().stream()
+                                            .noneMatch(s -> CoreUtils.isNullOrEmpty(s.getSegmentName()));
 
                                     boolean categoryMatch = false;
-                                    switch (category) {
-                                        case RESOURCE_GROUP_AS_PARENT:
-                                            if (urlPathSegments.hasResourceGroup() && !urlPathSegments.isNested()) {
-                                                categoryMatch = true;
-                                            }
-                                            break;
+                                    if (urlParameterSegmentsNamed && urlPathSegments.hasSubscription()) {
+                                        switch (category) {
+                                            case RESOURCE_GROUP_AS_PARENT:
+                                                if (urlPathSegments.hasResourceGroup() && !urlPathSegments.isNested()) {
+                                                    categoryMatch = true;
+                                                }
+                                                break;
 
-                                        case SUBSCRIPTION_AS_PARENT:
-                                            if (!urlPathSegments.hasResourceGroup() && !urlPathSegments.isNested()) {
-                                                categoryMatch = true;
-                                            }
-                                            break;
+                                            case SUBSCRIPTION_AS_PARENT:
+                                                if (!urlPathSegments.hasResourceGroup() && !urlPathSegments.isNested()) {
+                                                    categoryMatch = true;
+                                                }
+                                                break;
 
-                                        case NESTED_CHILD:
-                                            if (urlPathSegments.isNested()) {
-                                                categoryMatch = true;
+                                            case NESTED_CHILD:
+                                                if (urlPathSegments.isNested()) {
+                                                    categoryMatch = true;
+                                                }
+                                                break;
+                                        }
+                                    }
+                                    if (!categoryMatch && (category == ModelCategory.SCOPE_AS_PARENT || category == ModelCategory.SCOPE_NESTED_CHILD)) {
+                                        // check for scope, required named parameters except scope
+                                        boolean urlParameterSegmentsNamedExceptScope = urlPathSegments.getReverseParameterSegments().stream()
+                                                .noneMatch(s -> s.getType() != UrlPathSegments.ParameterSegmentType.SCOPE && CoreUtils.isNullOrEmpty(s.getSegmentName()));
+
+                                        if (urlParameterSegmentsNamedExceptScope && urlPathSegments.hasScope()
+                                                && !urlPathSegments.hasSubscription() && !urlPathSegments.hasResourceGroup()) {
+                                            switch (category) {
+                                                case SCOPE_AS_PARENT:
+                                                    if (!urlPathSegments.isNested()) {
+                                                        categoryMatch = true;
+                                                    }
+                                                    break;
+
+                                                case SCOPE_NESTED_CHILD:
+                                                    if (urlPathSegments.isNested()) {
+                                                        categoryMatch = true;
+                                                    }
+                                                    break;
                                             }
-                                            break;
+                                        }
                                     }
 
                                     if (categoryMatch) {
                                         ClientModel bodyClientModel = getBodyClientModel(m, availableModels);
                                         if (bodyClientModel == null) {
-                                            logger.warn("client model not found for collection {}, method {}", collection.getInterfaceType().getName(), m.getInnerClientMethod().getName());
+                                            logger.warn("client model not found for collection '{}', method '{}'", collection.getInterfaceType().getName(), m.getInnerClientMethod().getName());
                                         } else {
                                             ResourceCreate resourceCreate = new ResourceCreate(fluentModel, collection, urlPathSegments,
                                                     m.getInnerClientMethod().getName(), bodyClientModel);
@@ -334,7 +402,7 @@ public class ResourceParser {
                 .findAny();
 
         if (!clientModelOpt.isPresent()) {
-            logger.warn("client model not found for type name {}, method {}", bodyTypeNameOpt.get(), method.getInnerClientMethod().getName());
+            logger.warn("client model not found for type name '{}', method '{}'", bodyTypeNameOpt.get(), method.getInnerClientMethod().getName());
         }
         return clientModelOpt.orElse(null);
     }
@@ -354,8 +422,7 @@ public class ResourceParser {
                 if (nameMatcher.test(methodNameLowerCase)) {
                     String returnTypeName = method.getFluentReturnType().toString();
                     // same model as create
-                    if ((isDelete && returnTypeName.equals(PrimitiveType.Void.getName()))
-                            || (!isDelete && returnTypeName.equals(resourceCreate.getResourceModel().getInterfaceType().getName()))) {
+                    if (isDelete || returnTypeName.equals(resourceCreate.getResourceModel().getInterfaceType().getName())) {
                         String url = method.getInnerProxyMethod().getUrlPath();
                         // same url as create
                         if (url.equals(resourceCreate.getUrlPathSegments().getPath())) {
