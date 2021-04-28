@@ -12,6 +12,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.regex.Pattern;
 
 public class ChoiceMapper implements IMapper<ChoiceSchema, IType> {
     private static ChoiceMapper instance = new ChoiceMapper();
@@ -49,18 +51,7 @@ public class ChoiceMapper implements IMapper<ChoiceSchema, IType> {
 
             List<ClientEnumValue> enumValues = new ArrayList<>();
             for (ChoiceValue enumValue : enumType.getChoices()) {
-                String enumName = enumValue.getValue();
-                if (!settings.isFluent()) {
-                    // there exists cases that namer in modelerfour doing a really poor job on enum values, hence for Fluent still do this on raw enum values
-                    if (enumValue.getLanguage() != null && enumValue.getLanguage().getJava() != null
-                            && enumValue.getLanguage().getJava().getName() != null) {
-                        enumName = enumValue.getLanguage().getJava().getName();
-                    } else if (enumValue.getLanguage() != null && enumValue.getLanguage().getDefault() != null
-                            && enumValue.getLanguage().getDefault().getName() != null) {
-                        enumName = enumValue.getLanguage().getDefault().getName();
-                    }
-                }
-                final String memberName = CodeNamer.getEnumMemberName(enumName);
+                final String memberName = getEnumMemberName(enumValue, settings);
                 long counter = enumValues.stream().filter(v -> v.getName().equals(memberName)).count();
                 if (counter > 0) {
                     enumValues.add(new ClientEnumValue(memberName + "_" + counter, enumValue.getValue()));
@@ -80,5 +71,33 @@ public class ChoiceMapper implements IMapper<ChoiceSchema, IType> {
         }
 
         return _itype;
+    }
+
+    private String getEnumMemberName(ChoiceValue enumValue, JavaSettings settings) {
+        String memberName;
+        String enumName = enumValue.getValue();
+        if (enumValue.getLanguage() != null && enumValue.getLanguage().getJava() != null
+                && enumValue.getLanguage().getJava().getName() != null) {
+            enumName = enumValue.getLanguage().getJava().getName();
+        } else if (enumValue.getLanguage() != null && enumValue.getLanguage().getDefault() != null
+                && enumValue.getLanguage().getDefault().getName() != null) {
+            enumName = enumValue.getLanguage().getDefault().getName();
+        }
+        if (!settings.isFluent()) {
+            memberName = CodeNamer.getEnumMemberName(enumName);
+        } else {
+            // there exists cases that namer in modelerfour doing a really poor job on enum values, hence for Fluent still do this on raw enum values
+            String candidateMemberNameFromM4 = CodeNamer.getEnumMemberName(enumName);
+            String candidateMemberNameFromValue = CodeNamer.getEnumMemberName(enumValue.getValue());
+            if (Objects.equals(
+                    candidateMemberNameFromM4.replaceAll(Pattern.quote("_"), ""),
+                    candidateMemberNameFromValue.replaceAll(Pattern.quote("_"), ""))) {
+                memberName = candidateMemberNameFromValue;
+            } else {
+                // use name from M4, since it appears that the name is customized by 'x-ms-enum.values.name'
+                memberName = candidateMemberNameFromM4;
+            }
+        }
+        return memberName;
     }
 }
