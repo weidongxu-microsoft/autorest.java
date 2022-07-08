@@ -23,7 +23,7 @@ using Cadl.Http;
 using Cadl.Versioning;
 
 @versioned(Versions)
-@serviceTitle("Microsoft Cognitive Language Text Analytics")
+@serviceTitle("Text Analytics")
 @doc("""
 The language service API is a suite of natural language processing
 (NLP) skills built with best-in-class Microsoft machine learning algorithms.  The
