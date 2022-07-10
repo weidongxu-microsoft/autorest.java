@@ -38,6 +38,7 @@ import {
   StatusCode,
 } from "@cadl-lang/rest/http";
 import {
+  getMadeOptionalOn,
   getVersion 
 } from "@cadl-lang/versioning";
 import {
@@ -588,7 +589,10 @@ export class CodeModelBuilder {
           required: !prop.optional,
           nullable: nullable,
           readOnly: this.isReadOnly(prop),
-          serializedName: prop.name
+          serializedName: prop.name,
+          extensions: {
+            madeOptionalOn: getMadeOptionalOn(this.program, prop)?.value
+          }
         })
       );
     }
