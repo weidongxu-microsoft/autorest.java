@@ -188,6 +188,8 @@ public class ModelPropertyMapper implements IMapper<Property, ClientModelPropert
             builder.defaultValue(autoRestPropertyDefaultValueExpression);
         }
 
-        return builder.build();
+        ClientModelProperty modelProperty = builder.build();
+        modelProperty.setMadeOptionalOn(property.getExtensions().getMadeOptionalOn());
+        return modelProperty;
     }
 }

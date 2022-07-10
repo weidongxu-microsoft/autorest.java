@@ -35,6 +35,7 @@ import com.fasterxml.jackson.annotation.JsonSetter;
 
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -544,6 +545,61 @@ public class ModelTemplate implements IJavaTemplate<ClientModel, JavaFile> {
                 }
             });
 
+            List<ClientModelProperty> requiredPropertiesIncludeMadeOptionalOn =
+                    model.getProperties().stream()
+                            .filter(p -> p.isRequired() || p.getMadeOptionalOn() != null)
+                            .collect(Collectors.toList());
+            if (requiredPropertiesIncludeMadeOptionalOn.size() > requiredProperties.size()) {
+                requiredCtorArgs = requiredPropertiesIncludeMadeOptionalOn.stream()
+                        .map(property -> String.format("@JsonProperty(%1$s) %2$s %3$s", property.getAnnotationArguments(),
+                                property.getClientType().toString(), property.getName())).collect(Collectors.joining(", "));
+
+                requiredParentCtorArgs = "";
+
+                if (!requiredParentProperties.isEmpty()) {
+                    requiredParentCtorArgs = requiredParentProperties.stream().map(property -> String.format(
+                            "@JsonProperty(%1$s) %2$s %3$s", property.getAnnotationArguments(),
+                            property.getClientType().toString(), property.getName())).collect(Collectors.joining(", "));
+                }
+
+                ctorArgs = new StringBuilder();
+                ctorArgs.append(requiredParentCtorArgs);
+                if (!(requiredParentProperties.isEmpty() || requiredPropertiesIncludeMadeOptionalOn.isEmpty())) {
+                    ctorArgs.append(", ");
+                }
+                ctorArgs.append(requiredCtorArgs);
+
+                classBlock.javadocComment(settings.getMaximumJavadocCommentWidth(), (comment) ->
+                {
+                    comment.description(String.format("Creates an instance of %1$s class.", model.getName()));
+
+                    requiredParentProperties.forEach(property -> comment
+                            .param(property.getName(), String.format("the %s value to set", property.getName())));
+                    requiredPropertiesIncludeMadeOptionalOn.forEach(property -> comment
+                            .param(property.getName(), String.format("the %s value to set", property.getName())));
+                });
+
+                classBlock.annotation("JsonCreator");
+                classBlock.publicConstructor(String.format("%1$s(%2$s)", model.getName(), ctorArgs), (constructor) ->
+                {
+                    if (!requiredParentProperties.isEmpty()) {
+                        constructor.line(String.format("super(%1$s);",
+                                requiredParentProperties.stream().map(ClientModelProperty::getName)
+                                        .collect(Collectors.joining(", "))));
+                    }
+
+                    if (!constantProperties.isEmpty()) {
+                        for (ClientModelProperty constantProperty : constantProperties) {
+                            constructor.line(String
+                                    .format("%1$s = %2$s;", constantProperty.getName(), constantProperty.getDefaultValue()));
+                        }
+                    }
+                    for (ClientModelProperty requiredProperty : requiredProperties) {
+                        constructor.line(String
+                                .format("this.%1$s = %2$s;", requiredProperty.getName(), requiredProperty.getName()));
+                    }
+                });
+            }
         } else if (!constantProperties.isEmpty()) {
             classBlock.javadocComment(settings.getMaximumJavadocCommentWidth(), (comment) ->
                 comment.description(String.format("Creates an instance of %1$s class.", model.getName())));

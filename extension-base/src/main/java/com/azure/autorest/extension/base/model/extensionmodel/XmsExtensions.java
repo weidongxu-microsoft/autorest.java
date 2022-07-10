@@ -32,6 +32,16 @@ public class XmsExtensions {
 
     private XmsExamples xmsExamples;
 
+    private String madeOptionalOn;
+
+    public String getMadeOptionalOn() {
+        return madeOptionalOn;
+    }
+
+    public void setMadeOptionalOn(String madeOptionalOn) {
+        this.madeOptionalOn = madeOptionalOn;
+    }
+
     public XmsEnum getXmsEnum() {
         return xmsEnum;
     }

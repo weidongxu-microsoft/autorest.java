@@ -95,6 +95,16 @@ public class ClientModelProperty implements ClientModelPropertyAccess {
     private final boolean polymorphicDiscriminator;
     private final boolean isXmlText;
 
+    private String madeOptionalOn;
+
+    public String getMadeOptionalOn() {
+        return madeOptionalOn;
+    }
+
+    public void setMadeOptionalOn(String madeOptionalOn) {
+        this.madeOptionalOn = madeOptionalOn;
+    }
+
     /**
      * Create a new ClientModelProperty with the provided properties.
      * @param name The name of this property.
