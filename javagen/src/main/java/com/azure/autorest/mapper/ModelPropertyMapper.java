@@ -189,7 +189,9 @@ public class ModelPropertyMapper implements IMapper<Property, ClientModelPropert
         }
 
         ClientModelProperty modelProperty = builder.build();
-        modelProperty.setMadeOptionalOn(property.getExtensions().getMadeOptionalOn());
+        if (property.getExtensions() != null) {
+            modelProperty.setMadeOptionalOn(property.getExtensions().getMadeOptionalOn());
+        }
         return modelProperty;
     }
 }
