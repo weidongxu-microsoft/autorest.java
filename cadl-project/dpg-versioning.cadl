@@ -21,7 +21,7 @@ enum Versions {
 model PostInput {
   url: string;
   @madeOptional(Versions.v11)
-  description: string;
+  description?: string;
 }
 
 @doc("Answer from service")
