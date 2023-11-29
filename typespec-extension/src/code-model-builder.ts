@@ -149,6 +149,7 @@ import {
   modelIs,
   getModelNameForProperty,
   isAllValueInteger,
+  typeIsUnion,
 } from "./type-utils.js";
 import {
   getClientApiVersions,
@@ -2148,7 +2149,12 @@ export class CodeModelBuilder {
       nullable = true;
     }
 
-    return new Property(this.getName(prop), this.getDoc(prop), schema, {
+    let apiComment: string | undefined = undefined;
+    if (prop.type.kind === "Union" && typeIsUnion(this.program, prop.type)) {
+      apiComment = `Recommend customize this property, as it is TypeSpec Union '${getUnionDescription(prop.type, this.typeNameOptions)}'`;
+    }
+
+    const property = new Property(this.getName(prop), this.getDoc(prop), schema, {
       summary: this.getSummary(prop),
       required: !prop.optional,
       nullable: nullable,
@@ -2157,6 +2163,13 @@ export class CodeModelBuilder {
       serializedName: this.getSerializedName(prop),
       extensions: extensions,
     });
+
+    if (apiComment) {
+      property.language.java = new Language();
+      property.language.java.comment = apiComment;
+    }
+
+    return property;
   }
 
   private processFormatString(type: Scalar, format: string, nameHint: string): Schema {
@@ -2195,9 +2208,9 @@ export class CodeModelBuilder {
     // TODO: name from typespec-client-generator-core
     const namespace = getNamespace(type);
     const baseName = pascalCase(name) + "Model";
-    this.logWarning(
-      `Convert TypeSpec Union '${getUnionDescription(type, this.typeNameOptions)}' to Class '${baseName}'`,
-    );
+    // this.logWarning(
+    //   `Convert TypeSpec Union '${getUnionDescription(type, this.typeNameOptions)}' to Class '${baseName}'`,
+    // );
     const unionSchema = new OrSchema(baseName + "Base", this.getDoc(type), {
       summary: this.getSummary(type),
     });

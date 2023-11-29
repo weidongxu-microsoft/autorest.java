@@ -149,6 +149,23 @@ export function hasScalarAsBase(type: Scalar, scalarName: IntrinsicScalarName): 
   return false;
 }
 
+export function typeIsUnion(program: Program, type: Union): boolean {
+  const nonNullVariants = Array.from(type.variants.values()).filter((it) => !isNullType(it.type));
+  if (nonNullVariants.length === 1) {
+    // Type | null, follow that Type
+    const ret = unionReferredByType(program, nonNullVariants[0], cache);
+    if (ret) {
+      return true;
+    }
+  } else if (isSameLiteralTypes(nonNullVariants)) {
+    // "literal1" | "literal2" -> Enum
+    return false;
+  } else {
+    // found Union
+    return true;
+  }
+}
+
 export function unionReferredByType(
   program: Program,
   type: Type,
