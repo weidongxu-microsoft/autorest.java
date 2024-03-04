@@ -3,6 +3,7 @@ import "@typespec/rest";
 import "@typespec/versioning";
 import "@azure-tools/typespec-azure-core";
 import "@azure-tools/typespec-azure-resource-manager";
+import "@azure-tools/typespec-client-generator-core";
 
 @armProviderNamespace
 @service({
@@ -19,6 +20,7 @@ using TypeSpec.Rest;
 using TypeSpec.Versioning;
 using Azure.Core;
 using Azure.ResourceManager;
+using Azure.ClientGenerator.Core;
 
 //----------------------- Child Resources -----------------------
 @doc("Subresource of Top Level Arm Resource.")
@@ -49,6 +51,13 @@ model TopLevelArmResource is TrackedResource<TopLevelArmResourceProperties> {
   @doc("arm resource name for path")
   @pattern("^[A-Za-z0-9]([A-Za-z0-9-_.]{0,62}[A-Za-z0-9])?$")
   name: string;
+
+  flattened: ToBeFlattened;
+}
+
+model ToBeFlattened {
+  prop1: string;
+  prop2: int32;
 }
 
 @doc("Top Level Arm Resource Properties.")
@@ -134,3 +143,6 @@ op ArmResourceUpdateSync<
   @body
   resource: TResource,
 ): ResponseWithHeader<TResource> | ErrorResponse;
+
+@@flattenProperty(TopLevelArmResource.properties);
+@@flattenProperty(TopLevelArmResource.flattened);
