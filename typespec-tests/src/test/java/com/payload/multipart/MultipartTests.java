@@ -12,7 +12,6 @@ import com.payload.FileUtils;
 import com.payload.multipart.models.Address;
 import com.payload.multipart.models.BinaryArrayPartsRequest;
 import com.payload.multipart.models.ComplexPartsRequest;
-import com.payload.multipart.models.JsonArrayPartsRequest;
 import com.payload.multipart.models.JsonPartRequest;
 import com.payload.multipart.models.MultiBinaryPartsRequest;
 import com.payload.multipart.models.MultiPartRequest;
@@ -169,13 +168,6 @@ public class MultipartTests {
     }
 
     @Test
-    public void testJsonArray() {
-        client.jsonArrayParts(new JsonArrayPartsRequest(
-                new ProfileImageFileDetails(BinaryData.fromFile(FILE)).setFilename("image.jpg"),
-                Arrays.asList(new Address("Y"), new Address("Z"))));
-    }
-
-    @Test
     public void testMultipleFiles() {
         client.multiBinaryParts(new MultiBinaryPartsRequest(
                 new ProfileImageFileDetails(BinaryData.fromFile(FILE)).setFilename("image.jpg"))
@@ -223,7 +215,6 @@ public class MultipartTests {
                 "123",
                 new Address("X"),
                 new ProfileImageFileDetails(BinaryData.fromFile(FILE)).setFilename("image.jpg"),
-                Arrays.asList(new Address("Y"), new Address("Z")),
                 Arrays.asList(
                         new PicturesFileDetails(BinaryData.fromFile(PNG_FILE)).setFilename("image1.png"),
                         new PicturesFileDetails(BinaryData.fromFile(PNG_FILE)).setFilename("image2.png")
