@@ -30,6 +30,6 @@ public class MultipartHttpPartTests {
                 new Address("X"),
                 new FileRequiredMetaDataFileDetails(BinaryData.fromFile(FILE), "profileImage", "application/octet-stream"),
                 List.of(new Address("Y"), new Address("Z")),
-                List.of(new PicturesFileDetails(BinaryData.fromFile(PNG_FILE)).setFilename("picture1"), new PicturesFileDetails(BinaryData.fromFile(PNG_FILE)).setFilename("picture2"))));
+                List.of(new FileRequiredMetaDataFileDetails(BinaryData.fromFile(PNG_FILE), "picture1", "application/octet-stream"), new FileRequiredMetaDataFileDetails(BinaryData.fromFile(PNG_FILE), "picture2", "application/octet-stream"))));
     }
 }

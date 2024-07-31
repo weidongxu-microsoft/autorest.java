@@ -22,6 +22,7 @@ import com.payload.multipart.implementation.models.AnonymousModelRequest;
 import com.payload.multipart.models.BinaryArrayPartsRequest;
 import com.payload.multipart.models.ComplexHttpPartsModelRequest;
 import com.payload.multipart.models.ComplexPartsRequest;
+import com.payload.multipart.models.FileRequiredMetaDataFileDetails;
 import com.payload.multipart.models.FileWithHttpPartOptionalContentTypeRequest;
 import com.payload.multipart.models.FileWithHttpPartRequiredContentTypeRequest;
 import com.payload.multipart.models.FileWithHttpPartSpecificContentTypeRequest;
@@ -547,9 +548,18 @@ public final class MultiPartAsyncClient {
                     body.getProfileImage().getContentType(), body.getProfileImage().getFilename())
                 .serializeJsonField("previousAddresses", body.getPreviousAddresses())
                 .serializeFileFields("pictures",
-                    body.getPictures().stream().map(PicturesFileDetails::getContent).collect(Collectors.toList()),
-                    body.getPictures().stream().map(PicturesFileDetails::getContentType).collect(Collectors.toList()),
-                    body.getPictures().stream().map(PicturesFileDetails::getFilename).collect(Collectors.toList()))
+                    body.getPictures()
+                        .stream()
+                        .map(FileRequiredMetaDataFileDetails::getContent)
+                        .collect(Collectors.toList()),
+                    body.getPictures()
+                        .stream()
+                        .map(FileRequiredMetaDataFileDetails::getContentType)
+                        .collect(Collectors.toList()),
+                    body.getPictures()
+                        .stream()
+                        .map(FileRequiredMetaDataFileDetails::getFilename)
+                        .collect(Collectors.toList()))
                 .end()
                 .getRequestBody(),
             requestOptions).flatMap(FluxUtil::toMono);

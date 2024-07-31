@@ -41,7 +41,7 @@ public final class ComplexHttpPartsModelRequest {
      * The pictures property.
      */
     @Generated
-    private final List<PicturesFileDetails> pictures;
+    private final List<FileRequiredMetaDataFileDetails> pictures;
 
     /**
      * Creates an instance of ComplexHttpPartsModelRequest class.
@@ -54,7 +54,7 @@ public final class ComplexHttpPartsModelRequest {
      */
     @Generated
     public ComplexHttpPartsModelRequest(String id, Address address, FileRequiredMetaDataFileDetails profileImage,
-        List<Address> previousAddresses, List<PicturesFileDetails> pictures) {
+        List<Address> previousAddresses, List<FileRequiredMetaDataFileDetails> pictures) {
         this.id = id;
         this.address = address;
         this.profileImage = profileImage;
@@ -108,7 +108,7 @@ public final class ComplexHttpPartsModelRequest {
      * @return the pictures value.
      */
     @Generated
-    public List<PicturesFileDetails> getPictures() {
+    public List<FileRequiredMetaDataFileDetails> getPictures() {
         return this.pictures;
     }
 }
